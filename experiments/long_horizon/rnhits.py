@@ -1,4 +1,4 @@
-# line to run: python run_nhits.py --dataset ETTh1 --horizon 96 --num_samples 5
+# line to run: python rnhits.py --dataset ETTh1 --horizon 96 --num_samples 5
 import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
