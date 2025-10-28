@@ -9,11 +9,14 @@ from ray import tune
 
 from neuralforecast.auto import AutoNHITS
 from neuralforecast.core import NeuralForecast
-
+import matplotlib.pyplot as plt
+import numpy as np
 from neuralforecast.losses.pytorch import MAE, HuberLoss
 from neuralforecast.losses.numpy import mae, mse
 #from datasetsforecast.long_horizon import LongHorizon, LongHorizonInfo
 from datasetsforecast.long_horizon2 import LongHorizon2, LongHorizon2Info
+import matplotlib.pyplot as plt
+from pandas.tseries.frequencies import to_offset
 
 import logging
 logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
@@ -56,7 +59,7 @@ if __name__ == '__main__':
         #"learning_rate": tune.choice([1e-3]),                                     # Initial Learning rate
         "learning_rate": tune.loguniform(1e-5, 5e-3),
         # "max_steps": tune.choice([200, 1000]),       
-        "max_steps": tune.choice([5, 20]),                               # Number of SGD steps
+        "max_steps": tune.choice([20, 50]),                               # Number of SGD steps
         "input_size": input_size,                                                 # input_size = multiplier * horizon
         "batch_size": tune.choice([7]),                                           # Number of series in windows
         "windows_batch_size": tune.choice([256]),                                 # Number of windows in batch
@@ -109,3 +112,28 @@ if __name__ == '__main__':
         os.makedirs(f'./data/{dataset}')
     yhat_file = f'./data/{dataset}/{horizon}_forecasts.csv'
     Y_hat_df.to_csv(yhat_file, index=False)
+
+# --- Plot one representative series ---
+print("Plotting predictions...")
+
+first_id = Y_df.unique_id.unique()[0]
+
+# Forecast rows for the chosen series (has proper future ds)
+fh = Y_hat_df[Y_hat_df.unique_id == first_id].copy()
+
+# History just before the forecast window (e.g., last 4 horizons)
+step = to_offset(freq)                  # e.g., <Hour>
+lookback = 4 * horizon
+hist_start = fh.ds.min() - lookback * step
+history = Y_df[(Y_df.unique_id == first_id) & (Y_df.ds >= hist_start) & (Y_df.ds < fh.ds.min())]
+
+plt.figure(figsize=(12,6))
+plt.plot(history.ds, history.y, label="History", color="black")
+plt.plot(fh.ds, fh['y'], label="True Future", color="green")
+plt.plot(fh.ds, fh['AutoNHITS'], label="Predicted", linestyle="--", color="blue")
+
+plt.title(f"NHITS Forecast ({dataset}, horizon={horizon})")
+plt.xlabel("Date"); plt.ylabel("Value")
+plt.grid(True); plt.legend(); plt.tight_layout()
+plt.savefig(f'./data/{dataset}/{horizon}_forecast_plot.png', dpi=200)
+plt.show()
