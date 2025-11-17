@@ -139,22 +139,71 @@ if __name__ == '__main__':
     Y_hat_df.to_csv(yhat_file, index=False)
     print(f"Saved forecasts to {yhat_file}")
 
-    # ---- Plot one series ----
-    first_id = Y_df.unique_id.unique()[0]
-    fh = Y_hat_df[Y_hat_df.unique_id == first_id].copy()
-    step = to_offset(freq)
-    lookback = 4 * horizon
-    hist_start = fh.ds.min() - lookback * step
-    history = Y_df[(Y_df.unique_id == first_id) & (Y_df.ds >= hist_start) & (Y_df.ds < fh.ds.min())]
+    # # ---- Plot one series ----
+    # first_id = Y_df.unique_id.unique()[0]
+    # fh = Y_hat_df[Y_hat_df.unique_id == first_id].copy()
+    # step = to_offset(freq)
+    # lookback = 4 * horizon
+    # hist_start = fh.ds.min() - lookback * step
+    # history = Y_df[(Y_df.unique_id == first_id) & (Y_df.ds >= hist_start) & (Y_df.ds < fh.ds.min())]
 
-    plt.figure(figsize=(12,6))
-    plt.plot(history.ds, history.y, label="History", color="black")
-    plt.plot(fh.ds, fh['y'], label="True Future", color="green")
-    plt.plot(fh.ds, fh['AutoNHITS'], label="Predicted", linestyle="--", color="blue")
-    plt.title(f"NHITS Forecast (Leaf_Price weekly, h={horizon})")
-    plt.xlabel("Date"); plt.ylabel("Leaf Price")
-    plt.grid(True); plt.legend(); plt.tight_layout()
-    plot_path = f'{out_dir}/{horizon}_forecast_plot.png'
-    plt.savefig(plot_path, dpi=200)
-    plt.show()
-    print(f"Saved plot to {plot_path}")
+    # plt.figure(figsize=(12,6))
+    # plt.plot(history.ds, history.y, label="History", color="black")
+    # plt.plot(fh.ds, fh['y'], label="True Future", color="green")
+    # plt.plot(fh.ds, fh['AutoNHITS'], label="Predicted", linestyle="--", color="blue")
+    # plt.title(f"NHITS Forecast (Leaf_Price weekly, h={horizon})")
+    # plt.xlabel("Date"); plt.ylabel("Leaf Price")
+    # plt.grid(True); plt.legend(); plt.tight_layout()
+    # plot_path = f'{out_dir}/{horizon}_forecast_plot.png'
+    # plt.savefig(plot_path, dpi=200)
+    # plt.show()
+    # print(f"Saved plot to {plot_path}")
+    # ---- Plot one series (gap-aware) ----
+first_id = Y_df.unique_id.unique()[0]
+fh = Y_hat_df[Y_hat_df.unique_id == first_id].copy()
+
+split_start = fh.ds.min()   # first forecast timestamp
+
+# History window (last 4×horizon weeks up to split_start, exclusive)
+step = to_offset(freq)
+lookback = 4 * horizon
+hist_start = split_start - lookback * step
+history = (Y_df[(Y_df.unique_id == first_id) &
+                (Y_df.ds >= hist_start) &
+                (Y_df.ds <  split_start)]
+           .sort_values('ds')[['ds','y']])
+
+# Reindex to weekly grid to create NaNs at gaps -> matplotlib breaks the line
+# ---- Plot one series, last CV window only ----
+first_id = Y_df.unique_id.unique()[0]
+fh = Y_hat_df[Y_hat_df.unique_id == first_id].copy()
+
+# last CV window
+last_cutoff = fh['cutoff'].max()
+fw = fh[fh['cutoff'] == last_cutoff].sort_values('ds')   # one contiguous 12-week forecast
+
+# history: last 4*h weeks before cutoff
+from pandas.tseries.frequencies import to_offset
+step = to_offset(freq)
+lookback = 4 * horizon
+hist_start = last_cutoff - lookback * step
+history = (Y_df[(Y_df.unique_id == first_id) & (Y_df.ds >= hist_start) & (Y_df.ds < last_cutoff)]
+           .sort_values('ds'))
+
+# gap-aware history
+hist_full = (history.set_index('ds')
+                     .asfreq(freq)
+                     .rename_axis('ds')
+                     .reset_index())
+
+import matplotlib.pyplot as plt
+g = (fh.groupby('ds', as_index=False)
+       .agg(y=('y','mean'), yhat=('AutoNHITS','mean')))
+plt.plot(g.ds, g.yhat, '--', label='Predicted (avg across windows)')
+
+out_dir = './data/KolkataLeaf'
+os.makedirs(out_dir, exist_ok=True)
+plot_path = f'{out_dir}/{horizon}_forecast_plot.png'
+plt.savefig(plot_path, dpi=200)
+plt.show()
+print(f"Saved plot to {plot_path}")
