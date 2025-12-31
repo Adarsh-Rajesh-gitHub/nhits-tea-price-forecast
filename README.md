@@ -16,7 +16,7 @@ This implementation predicts **12 weeks ahead** of tea prices using:
 
 The goal is to move beyond price-only, noisy forecasts and produce smoother, more interpretable predictions aligned with known agricultural and market drivers.
 
-📊 **Presentation on primary insights:**  
+📊 **Presentation on primary insights:**  (data and graph on slide 5 & 6)
 https://www.canva.com/design/DAG9DN88MIg/T2D6317Hyu36hwfYUnOVqg/edit
 
 ---
